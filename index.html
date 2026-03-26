@@ -357,7 +357,23 @@ function loadCloud(){
   });
 }
 
-function saveRec(date,data){db.ref('records/'+date).set(data)}
+function saveRec(date,data){
+  db.ref('records/'+date).set(data);
+  syncToSheet(date,data);
+}
+
+// ============ Google Sheets Sync ============
+const SHEET_WEBHOOK='https://script.google.com/macros/s/AKfycbzo5ZQjPebTlGo7oNz9kysdlei5ZUbFa5Pee9VGGydw9gx6-HFbOFRzm3Ocn2kVelOWPw/exec';
+function syncToSheet(date,data){
+  try{
+    fetch(SHEET_WEBHOOK,{
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(data)
+    });
+  }catch(e){console.warn('Sheet sync failed',e)}
+}
 
 // ============ Settings ============
 function loadLocalSettings(){
