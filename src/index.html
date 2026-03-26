@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>診所每日記錄</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Noto Sans TC",sans-serif;background:#f5f5f5;color:#333;max-width:480px;margin:0 auto;padding:12px;padding-bottom:40px}
+h1{text-align:center;font-size:1.3rem;padding:8px 0;color:#2c3e50}
+
+/* Login */
+.login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh}
+.login-box{background:#fff;border-radius:16px;padding:32px;width:90%;max-width:360px;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.1)}
+.login-box h2{margin-bottom:16px;color:#2c3e50}
+.login-box input{width:100%;border:2px solid #ddd;border-radius:10px;padding:12px;font-size:1rem;text-align:center;margin-bottom:12px}
+.login-box input:focus{border-color:#27ae60;outline:none}
+.login-box button{width:100%;padding:12px;background:#27ae60;color:#fff;border:none;border-radius:10px;font-size:1rem;cursor:pointer}
+.login-box button:active{background:#1e8449}
+.login-box .hint{font-size:.8rem;color:#aaa;margin-top:12px}
+.login-error{color:#e74c3c;font-size:.85rem;margin-bottom:8px}
+
+/* App */
+.date-nav{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:12px}
+.date-nav button{background:#27ae60;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:1rem;cursor:pointer}
+.date-nav span{font-size:1.1rem;font-weight:bold;min-width:140px;text-align:center}
+.section{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.section h2{font-size:1rem;margin-bottom:12px;color:#2c3e50;border-bottom:2px solid #eee;padding-bottom:6px}
+
+/* Patient */
+.patient-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;gap:8px}
+.patient-row .label{font-size:1.05rem;min-width:60px}
+.patient-row .count-input{width:70px;height:48px;border:2px solid #ddd;border-radius:10px;font-size:1.5rem;font-weight:bold;text-align:center;color:#2c3e50}
+.patient-row .count-input:focus{border-color:#27ae60;outline:none}
+.btn-pm{width:48px;height:48px;border-radius:50%;border:none;font-size:1.4rem;font-weight:bold;cursor:pointer}
+.btn-plus{background:#27ae60;color:#fff}
+.btn-minus{background:#e74c3c;color:#fff}
+
+/* Income items */
+.income-item{margin-bottom:14px}
+.income-item .item-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.income-item .item-name{font-size:1rem;font-weight:bold}
+.income-item .item-subtotal{font-size:.85rem;color:#888}
+.quick-btns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.quick-btn{background:#ecf0f1;border:2px solid #bdc3c7;border-radius:8px;padding:8px 12px;font-size:.95rem;cursor:pointer}
+.quick-btn:active{background:#27ae60;color:#fff;border-color:#27ae60}
+.add-row{display:flex;gap:8px;margin-bottom:8px}
+.add-row input{flex:1;border:2px solid #ddd;border-radius:8px;padding:8px 10px;font-size:1rem;text-align:center}
+.add-row input:focus{border-color:#27ae60;outline:none}
+.btn-add{background:#27ae60;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:1rem;cursor:pointer;white-space:nowrap}
+.btn-add:active{background:#1e8449}
+.item-list{max-height:150px;overflow-y:auto}
+.item-row{display:flex;align-items:center;justify-content:space-between;padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:.9rem}
+.item-row .item-del{background:none;border:none;color:#e74c3c;font-size:1rem;cursor:pointer;padding:2px 6px}
+
+/* Summary */
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.summary-box{background:#ecf0f1;border-radius:10px;padding:10px;text-align:center}
+.summary-box .val{font-size:1.3rem;font-weight:bold;color:#2c3e50}
+.summary-box .lbl{font-size:.75rem;color:#888;margin-top:2px}
+.summary-box .detail{font-size:.65rem;color:#aaa;margin-top:1px}
+.summary-total{grid-column:1/-1;background:#d5f5e3}
+.summary-total .val{color:#27ae60}
+
+/* Session info in summary */
+.session-info{font-size:.85rem;color:#888;margin-bottom:8px;text-align:center}
+
+/* Leave */
+.leave-select-row{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center}
+.leave-select-row input[type="date"]{flex:1;min-width:120px;border:2px solid #ddd;border-radius:8px;padding:8px;font-size:.95rem}
+.leave-select-row select,.leave-select-row button{border:2px solid #ddd;border-radius:8px;padding:8px;font-size:.9rem;background:#fff;cursor:pointer}
+.leave-entry{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-bottom:1px solid #f0f0f0;font-size:.85rem}
+
+/* History */
+.rec-date{font-weight:bold;font-size:.9rem;color:#2c3e50;margin-top:8px}
+.rec-detail{font-size:.8rem;color:#666;padding-left:12px}
+.rec-detail2{font-size:.75rem;color:#999;padding-left:12px}
+.records-list{max-height:300px;overflow-y:auto}
+
+/* Settings */
+.settings-link{text-align:center;margin-top:12px}
+.settings-link button{background:none;border:none;color:#27ae60;font-size:.9rem;cursor:pointer;text-decoration:underline}
+.sync-status{text-align:center;font-size:.75rem;color:#aaa;margin-top:8px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:16px;padding:20px;width:90%;max-width:400px}
+.modal h2{margin-bottom:14px}
+.setting-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.setting-row label{font-size:.95rem}
+.setting-row input{width:120px;border:2px solid #ddd;border-radius:8px;padding:6px 8px;font-size:.9rem}
+.btn-save{width:100%;padding:12px;background:#27ae60;color:#fff;border:none;border-radius:10px;font-size:1rem;cursor:pointer;margin-top:8px}
+.btn-danger{width:100%;padding:10px;background:#e74c3c;color:#fff;border:none;border-radius:10px;font-size:.95rem;cursor:pointer;margin-top:6px}
+.btn-close{width:100%;padding:10px;background:#95a5a6;color:#fff;border:none;border-radius:10px;font-size:.95rem;cursor:pointer;margin-top:6px}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<h1>🏥 診所每日記錄</h1>
+
+<!-- Login -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <h2>🔐 登入</h2>
+    <div class="login-error" id="loginError"></div>
+    <input type="password" id="loginPassword" placeholder="輸入密碼" autocomplete="current-password">
+    <button onclick="login()">進入</button>
+    <div class="hint">首次使用請設定密碼</div>
+  </div>
+</div>
+
+<!-- App -->
+<div class="hidden" id="appScreen">
+  <div class="date-nav">
+    <button onclick="changeDate(-1)">◀</button>
+    <span id="dateDisplay"></span>
+    <button onclick="changeDate(1)">▶</button>
+  </div>
+
+  <!-- 病人數量 -->
+  <div class="section">
+    <h2>👨‍⚕️ 病人數量</h2>
+    <div class="patient-row">
+      <span class="label">內科</span>
+      <button class="btn-pm btn-minus" onclick="adj('internal',-1)">−</button>
+      <input type="number" class="count-input" id="internalInput" inputmode="numeric" value="0" onchange="setCount('internal')">
+      <button class="btn-pm btn-plus" onclick="adj('internal',1)">＋</button>
+    </div>
+    <div class="patient-row">
+      <span class="label">針傷科</span>
+      <button class="btn-pm btn-minus" onclick="adj('acu',-1)">−</button>
+      <input type="number" class="count-input" id="acuInput" inputmode="numeric" value="0" onchange="setCount('acu')">
+      <button class="btn-pm btn-plus" onclick="adj('acu',1)">＋</button>
+    </div>
+  </div>
+
+  <!-- 收入記錄 -->
+  <div class="section">
+    <h2>💰 收入記錄</h2>
+    <div class="income-item" id="herbSection"></div>
+    <div class="income-item" id="powderSection"></div>
+    <div class="income-item" id="knifeSection"></div>
+    <div class="income-item" id="otherSection"></div>
+  </div>
+
+  <!-- 今日收入摘要 -->
+  <div class="section">
+    <h2>📊 今日收入摘要</h2>
+    <div class="session-info" id="sessionInfo"></div>
+    <div class="summary-grid" id="summaryGrid"></div>
+  </div>
+
+  <!-- 本月薪資 -->
+  <div class="section">
+    <h2>💰 本月薪資統計</h2>
+    <div class="summary-grid">
+      <div class="summary-box"><div class="val" id="mWorked">0</div><div class="lbl">已上診數</div></div>
+      <div class="summary-box"><div class="val" id="mTotal">0</div><div class="lbl">本月總診數</div></div>
+      <div class="summary-box" style="background:#d5f5e3"><div class="val" id="mCurrent" style="color:#27ae60">$0</div><div class="lbl">當前薪水</div></div>
+      <div class="summary-box" style="background:#d5e8f5"><div class="val" id="mEstimate" style="color:#2980b9">$0</div><div class="lbl">預估薪水</div></div>
+      <div class="summary-box" style="background:#fde8e8;grid-column:1/-1"><div class="val" id="mAfterLeave" style="color:#c0392b">$0</div><div class="lbl">預估薪水（扣請假後）</div></div>
+    </div>
+  </div>
+
+  <!-- 請假 -->
+  <div class="section">
+    <h2>📋 請假記錄</h2>
+    <div class="leave-select-row">
+      <input type="date" id="leaveDate">
+      <select id="leaveType">
+        <option value="morning">早診 (扣$3,000)</option>
+        <option value="afternoon">午診 (扣$3,500)</option>
+        <option value="evening">晚診 (扣$3,500)</option>
+      </select>
+      <button class="btn-add" onclick="addLeave()">+ 請假</button>
+    </div>
+    <div id="leaveList"></div>
+    <div style="margin-top:6px;font-size:.85rem;color:#888" id="leaveSummary"></div>
+  </div>
+
+  <!-- 歷史 -->
+  <div class="section">
+    <h2>📅 歷史記錄</h2>
+    <div class="records-list" id="historyList"></div>
+  </div>
+
+  <div class="settings-link"><button onclick="openSettings()">⚙️ 設定常用金額</button></div>
+  <div class="sync-status" id="syncStatus"></div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <h2>⚙️ 常用金額設定</h2>
+    <p style="font-size:.8rem;color:#888;margin-bottom:10px">用逗號分隔多個金額</p>
+    <div class="setting-row"><label>🍵 水藥</label><input id="setHerb" placeholder="1900,1400"></div>
+    <div class="setting-row"><label>💊 藥粉</label><input id="setPowder" placeholder="840"></div>
+    <div class="setting-row"><label>🔪 小針刀</label><input id="setKnife" placeholder="600"></div>
+    <div class="setting-row"><label>📝 其他</label><input id="setOther" placeholder="推薦費等"></div>
+    <button class="btn-save" onclick="saveSettings()">儲存設定</button>
+    <button class="btn-danger" onclick="clearToday()">🗑️ 清除選取日期資料</button>
+    <button class="btn-close" onclick="closeSettings()">關閉</button>
+  </div>
+</div>
+
+<script>
+// ============ Firebase ============
+const firebaseConfig = {
+  apiKey:"AIzaSyDqJQG1MnXUotq8Rq0UGv7EQkeJ2_ftp8w",
+  authDomain:"clinic-tracker-63369.firebaseapp.com",
+  databaseURL:"https://clinic-tracker-63369-default-rtdb.firebaseio.com",
+  projectId:"clinic-tracker-63369",
+  storageBucket:"clinic-tracker-63369.firebasestorage.app",
+  messagingSenderId:"942952811139",
+  appId:"1:942952811139:web:ff16562ca9cdfc8f7de9b6"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ============ Constants ============
+// Day of week: 0=Sun ... 6=Sat
+const SCHEDULE = [0, 2, 2, 1, 0, 2, 1]; // Sun=0, Mon=2, Tue=2, Wed=1, Thu=0, Fri=2, Sat=1
+const DEDUCTION = {morning:3000, afternoon:3500, evening:3500};
+const LEAVE_LABEL = {morning:'早診', afternoon:'午診', evening:'晚診'};
+const DAY_LABELS = ['日','一','二','三','四','五','六'];
+const INCOME_TYPES = [
+  {key:'herb', label:'🍵 水藥', defaults:[1900,1400]},
+  {key:'powder', label:'💊 藥粉', defaults:[840]},
+  {key:'knife', label:'🔪 小針刀', defaults:[600]},
+  {key:'other', label:'📝 其他', defaults:[]}
+];
+
+// ============ State ============
+const PASS_KEY = 'clinic_pass_hash';
+const SET_KEY = 'clinic_settings';
+let curDate = today();
+let allData = {};
+let allLeaves = {};
+let settings = loadLocalSettings();
+let authed = false;
+
+// ============ Helpers ============
+function today(){return new Date().toISOString().split('T')[0]}
+function fmtDate(d){const[y,m,dd]=d.split('-');const dow=new Date(d+'T00:00:00').getDay();return `${m}/${dd}（${DAY_LABELS[dow]}）`}
+function getDow(d){return new Date(d+'T00:00:00').getDay()}
+function sumArr(a){return(a||[]).reduce((s,v)=>s+v,0)}
+function $(id){return document.getElementById(id)}
+
+// ============ Data compatibility ============
+// Old format: {acu, internal, knife:[], powder:[]}
+// New format: + sessions, herb:[], other:[]
+function normalizeData(d){
+  d = d || {};
+  if(d.sessions === undefined){
+    d.sessions = SCHEDULE[getDow(curDate)]; // will be overridden per-date
+  }
+  if(!Array.isArray(d.herb)) d.herb = [];
+  if(!Array.isArray(d.other)) d.other = [];
+  if(!Array.isArray(d.knife)) d.knife = [];
+  if(!Array.isArray(d.powder)) d.powder = [];
+  if(d.internal === undefined) d.internal = 0;
+  if(d.acu === undefined) d.acu = 0;
+  return d;
+}
+
+// For existing records loaded from cloud, infer sessions from day of week
+function normalizeLoadedData(d, date){
+  d = d || {};
+  if(d.sessions === undefined){
+    d.sessions = SCHEDULE[getDow(date)];
+  }
+  if(!Array.isArray(d.herb)) d.herb = [];
+  if(!Array.isArray(d.other)) d.other = [];
+  if(!Array.isArray(d.knife)) d.knife = d.knife || [];
+  if(!Array.isArray(d.powder)) d.powder = d.powder || [];
+  if(d.internal === undefined) d.internal = 0;
+  if(d.acu === undefined) d.acu = 0;
+  return d;
+}
+
+function getData(date){
+  const raw = allData[date];
+  return normalizeLoadedData(raw, date);
+}
+
+// ============ Salary calc ============
+function calcDayIncome(d){
+  const sess = d.sessions || 0;
+  const internal = d.internal || 0;
+  const acu = d.acu || 0;
+  const knifeTotal = sumArr(d.knife);
+  const herbPowder = sumArr(d.herb) + sumArr(d.powder);
+  const otherTotal = sumArr(d.other);
+  return sess * 1600 + internal * 110 + acu * 55
+    + Math.round(knifeTotal * 0.4)
+    + Math.round(herbPowder * 0.2)
+    + Math.round(otherTotal * 0.2);
+}
+
+// ============ Auth ============
+function simpleHash(str){
+  let h=0;for(let i=0;i<str.length;i++){h=((h<<5)-h)+str.charCodeAt(i);h|=0}
+  return 'h_'+Math.abs(h).toString(36);
+}
+
+function login(){
+  const pw=$('loginPassword').value;if(!pw)return;
+  const hash=simpleHash(pw);
+  const saved=localStorage.getItem(PASS_KEY);
+  if(!saved){
+    localStorage.setItem(PASS_KEY,hash);
+    db.ref('config/passHash').set(hash);
+    showApp();
+  }else if(hash===saved){
+    showApp();
+  }else{
+    db.ref('config/passHash').once('value').then(s=>{
+      if(s.val()===hash){localStorage.setItem(PASS_KEY,hash);showApp();}
+      else $('loginError').textContent='密碼錯誤';
+    });
+  }
+}
+
+function showApp(){
+  authed=true;
+  $('loginScreen').classList.add('hidden');
+  $('appScreen').classList.remove('hidden');
+  $('leaveDate').value=today();
+  loadCloud();
+}
+
+$('loginPassword').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+
+(function(){
+  const saved=localStorage.getItem(PASS_KEY);
+  if(!saved)return;
+  db.ref('config/passHash').once('value').then(s=>{if(s.val()===saved)showApp()});
+})();
+
+// ============ Cloud ============
+function loadCloud(){
+  db.ref('records').on('value',s=>{
+    const raw=s.val()||{};
+    // Normalize all loaded data
+    for(const k of Object.keys(raw)){
+      raw[k]=normalizeLoadedData(raw[k],k);
+    }
+    allData=raw;
+    render();
+    $('syncStatus').textContent='☁️ 已同步 '+new Date().toLocaleTimeString('zh-TW');
+  });
+  db.ref('leaves').on('value',s=>{allLeaves=s.val()||{};renderLeaves();renderMonthly()});
+  db.ref('settings').once('value').then(s=>{
+    if(s.val()){settings=s.val();saveLocalSettings(settings)}
+  });
+}
+
+function saveRec(date,data){db.ref('records/'+date).set(data)}
+
+// ============ Settings ============
+function loadLocalSettings(){
+  try{return JSON.parse(localStorage.getItem(SET_KEY))||{herb:[1900,1400],powder:[840],knife:[600],other:[]}}
+  catch{return{herb:[1900,1400],powder:[840],knife:[600],other:[]}}
+}
+function saveLocalSettings(s){localStorage.setItem(SET_KEY,JSON.stringify(s))}
+
+function getQuickVals(key){
+  const arr=settings[key];
+  return Array.isArray(arr)&&arr.length>0?arr:(INCOME_TYPES.find(t=>t.key===key)||{}).defaults||[];
+}
+
+function openSettings(){
+  ['herb','powder','knife','other'].forEach(k=>{
+    $('set'+k.charAt(0).toUpperCase()+k.slice(1)).value=(settings[k]||[]).join(', ');
+  });
+  $('settingsModal').classList.add('show');
+}
+function closeSettings(){$('settingsModal').classList.remove('show')}
+function saveSettings(){
+  settings={};
+  ['herb','powder','knife','other'].forEach(k=>{
+    settings[k]=$('set'+k.charAt(0).toUpperCase()+k.slice(1)).value.split(/[,，\s]+/).map(Number).filter(n=>n>0);
+  });
+  saveLocalSettings(settings);
+  db.ref('settings').set(settings);
+  closeSettings();render();
+}
+function clearToday(){
+  if(!confirm('確定清除 '+fmtDate(curDate)+' 的所有資料？'))return;
+  db.ref('records/'+curDate).remove();
+}
+$('settingsModal').onclick=function(e){if(e.target===this)closeSettings()};
+
+// ============ Date nav ============
+function changeDate(d){
+  const [y,m,dd]=curDate.split('-').map(Number);
+  const dt=new Date(y, m-1, dd+d);
+  curDate=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+  render();
+}
+
+// ============ Patients ============
+function adj(field,delta){
+  const d=getData(curDate);
+  d[field]=Math.max(0,(d[field]||0)+delta);
+  saveRec(curDate,d);
+}
+function setCount(field){
+  const el=$(field+'Input');
+  const d=getData(curDate);
+  d[field]=Math.max(0,parseInt(el.value)||0);
+  saveRec(curDate,d);
+}
+
+// ============ Income ============
+function addIncome(type){
+  const el=$(type+'Input');const val=parseInt(el.value);
+  if(!val||val<=0)return;
+  const d=getData(curDate);
+  d[type].push(val);
+  saveRec(curDate,d);el.value='';
+}
+function addQuickIncome(type,val){
+  const d=getData(curDate);
+  d[type].push(val);
+  saveRec(curDate,d);
+}
+function removeIncome(type,idx){
+  const d=getData(curDate);
+  d[type].splice(idx,1);
+  saveRec(curDate,d);
+}
+
+// ============ Render income section ============
+function renderIncomeSection(type,label){
+  const d=getData(curDate);
+  const items=d[type]||[];
+  const total=sumArr(items);
+  const quickVals=getQuickVals(type);
+  const sectionId=type+'Section';
+
+  let html=`<div class="item-header"><span class="item-name">${label}</span><span class="item-subtotal">${items.length} 筆 / $${total.toLocaleString()}</span></div>`;
+  if(quickVals.length>0){
+    html+='<div class="quick-btns">';
+    quickVals.forEach(v=>{html+=`<button class="quick-btn" onclick="addQuickIncome('${type}',${v})">$${v.toLocaleString()}</button>`});
+    html+='</div>';
+  }
+  html+=`<div class="add-row"><input type="number" id="${type}Input" placeholder="自訂金額" inputmode="numeric"><button class="btn-add" onclick="addIncome('${type}')">新增</button></div>`;
+  if(items.length>0){
+    html+='<div class="item-list">';
+    items.forEach((v,i)=>{html+=`<div class="item-row"><span>$${v.toLocaleString()}</span><button class="item-del" onclick="removeIncome('${type}',${i})">✕</button></div>`});
+    html+='</div>';
+  }
+  $(sectionId).innerHTML=html;
+}
+
+// ============ Render summary ============
+function renderSummary(){
+  const d=getData(curDate);
+  const sess=d.sessions||0;
+  const internal=d.internal||0;
+  const acu=d.acu||0;
+  const knifeTotal=sumArr(d.knife);
+  const herbTotal=sumArr(d.herb);
+  const powderTotal=sumArr(d.powder);
+  const otherTotal=sumArr(d.other);
+  const herbPowderTotal=herbTotal+powderTotal;
+
+  const sessIncome=sess*1600;
+  const intIncome=internal*110;
+  const acuIncome=acu*55;
+  const knifeIncome=Math.round(knifeTotal*0.4);
+  const herbPowIncome=Math.round(herbPowderTotal*0.2);
+  const otherIncome=Math.round(otherTotal*0.2);
+  const total=sessIncome+intIncome+acuIncome+knifeIncome+herbPowIncome+otherIncome;
+
+  const schedLabel=SCHEDULE[getDow(curDate)]===0?'休診':SCHEDULE[getDow(curDate)]===1?'早診（1診）':'午+晚（2診）';
+  $('sessionInfo').textContent=`📅 排程：${schedLabel}　｜　記錄診數：${sess}`;
+
+  $('summaryGrid').innerHTML=`
+    <div class="summary-box"><div class="val">${sess}</div><div class="lbl">診數</div><div class="detail">${sess}×$1,600=$${sessIncome.toLocaleString()}</div></div>
+    <div class="summary-box"><div class="val">${internal} / ${acu}</div><div class="lbl">內科 / 針傷</div><div class="detail">${internal}×110 + ${acu}×55 = $${(intIncome+acuIncome).toLocaleString()}</div></div>
+    <div class="summary-box"><div class="val">$${knifeIncome.toLocaleString()}</div><div class="lbl">小針刀×40%</div><div class="detail">原額 $${knifeTotal.toLocaleString()}</div></div>
+    <div class="summary-box"><div class="val">$${herbPowIncome.toLocaleString()}</div><div class="lbl">水藥+藥粉×20%</div><div class="detail">原額 $${herbPowderTotal.toLocaleString()}</div></div>
+    ${otherTotal>0?`<div class="summary-box"><div class="val">$${otherIncome.toLocaleString()}</div><div class="lbl">其他×20%</div><div class="detail">原額 $${otherTotal.toLocaleString()}</div></div>`:''}
+    <div class="summary-box summary-total"><div class="val">$${total.toLocaleString()}</div><div class="lbl">今日總收入</div></div>
+  `;
+}
+
+// ============ Monthly salary ============
+function renderMonthly(){
+  const now=new Date();
+  const y=now.getFullYear(),m=now.getMonth();
+  const daysInMonth=new Date(y,m+1,0).getDate();
+  const prefix=`${y}-${String(m+1).padStart(2,'0')}`;
+
+  let totalSlots=0;
+  for(let d=1;d<=daysInMonth;d++){totalSlots+=SCHEDULE[new Date(y,m,d).getDay()]}
+
+  let workedSlots=0,currentSalary=0;
+  for(const[date,raw]of Object.entries(allData)){
+    if(!date.startsWith(prefix))continue;
+    const d=normalizeLoadedData(raw,date);
+    const hasData=d.internal>0||d.acu>0||d.herb.length>0||d.knife.length>0||d.powder.length>0||d.other.length>0;
+    if(!hasData)continue;
+    workedSlots+=SCHEDULE[getDow(date)];
+    currentSalary+=calcDayIncome(d);
+  }
+
+  // 計算請假扣掉的診數
+  let leaveSlotCount=0;
+  for(const[date,leaves]of Object.entries(allLeaves)){
+    if(!date.startsWith(prefix))continue;
+    if(typeof leaves==='object'&&leaves!==null){
+      for(const k of Object.keys(leaves)){
+        if(k==='morning')leaveSlotCount+=1;
+        else leaveSlotCount+=1; // afternoon or evening = 1 slot each
+      }
+    }
+  }
+
+  // 有效診數 = 總診數 - 請假診數
+  const effectiveSlots=Math.max(0,totalSlots-leaveSlotCount);
+
+  // 每診自費平均（不含診費1600）
+  const avgExtra=workedSlots>0?Math.round((currentSalary-workedSlots*1600)/workedSlots):0;
+
+  // 預估薪水 = 自費均攤 × 有效診數 + 1600 × 有效診數 + 牌照費55000
+  let estimate=avgExtra*effectiveSlots+1600*effectiveSlots+55000;
+
+  let leaveDed=0;
+  for(const[date,leaves]of Object.entries(allLeaves)){
+    if(!date.startsWith(prefix))continue;
+    if(typeof leaves==='object'&&leaves!==null){
+      for(const k of Object.keys(leaves)){
+        leaveDed+=DEDUCTION[k]||0;
+      }
+    }
+  }
+
+  const afterLeave=Math.max(0,estimate-leaveDed);
+  $('mWorked').textContent=workedSlots;
+  $('mTotal').textContent=totalSlots+' (扣除請假'+leaveSlotCount+'診)';
+  $('mCurrent').textContent='$'+currentSalary.toLocaleString();
+  $('mEstimate').textContent='$'+estimate.toLocaleString();
+  $('mAfterLeave').textContent='$'+afterLeave.toLocaleString();
+}
+
+// ============ Leave system ============
+function addLeave(){
+  const date=$('leaveDate').value;const type=$('leaveType').value;
+  if(!date)return alert('請選擇日期');
+  // Support multiple leaves per day: use type as sub-key
+  db.ref('leaves/'+date+'/'+type).set({type,deduction:DEDUCTION[type]});
+}
+
+function removeLeave(date,type){
+  if(!confirm('確定取消此請假？'))return;
+  db.ref('leaves/'+date+'/'+type).remove();
+}
+
+function renderLeaves(){
+  const now=new Date();const y=now.getFullYear(),m=now.getMonth();
+  const prefix=`${y}-${String(m+1).padStart(2,'0')}`;
+  const entries=[];
+  for(const[date,types]of Object.entries(allLeaves)){
+    if(!date.startsWith(prefix))continue;
+    if(typeof types==='object'&&types!==null){
+      for(const[k,v]of Object.entries(types)){
+        entries.push({date,type:k,deduction:v.deduction||DEDUCTION[k]||0});
+      }
+    }
+  }
+  entries.sort((a,b)=>b.date.localeCompare(a.date));
+
+  const el=$('leaveList');
+  if(entries.length===0){
+    el.innerHTML='<div style="text-align:center;color:#aaa;padding:8px;font-size:.9rem">本月無請假記錄</div>';
+  }else{
+    el.innerHTML=entries.map(e=>
+      `<div class="leave-entry"><span>${fmtDate(e.date)} - ${LEAVE_LABEL[e.type]}（扣$${e.deduction.toLocaleString()}）</span><button class="item-del" onclick="removeLeave('${e.date}','${e.type}')">✕</button></div>`
+    ).join('');
+  }
+  const totalDed=entries.reduce((s,e)=>s+e.deduction,0);
+  $('leaveSummary').textContent=entries.length>0?`本月請假扣款：$${totalDed.toLocaleString()}`:'';
+}
+
+// ============ History ============
+function renderHistory(){
+  const dates=Object.keys(allData).sort().reverse().filter(d=>d!==curDate).slice(0,15);
+  const el=$('historyList');
+  if(!dates.length){el.innerHTML='<div style="text-align:center;color:#aaa;padding:12px">尚無歷史記錄</div>';return}
+  el.innerHTML=dates.map(date=>{
+    const d=allData[date];
+    const income=calcDayIncome(d);
+    const herbT=sumArr(d.herb||[]);const knifeT=sumArr(d.knife||[]);const powderT=sumArr(d.powder||[]);const otherT=sumArr(d.other||[]);
+    const parts=[];
+    if(herbT)parts.push(`水藥$${herbT.toLocaleString()}`);
+    if(knifeT)parts.push(`針刀$${knifeT.toLocaleString()}`);
+    if(powderT)parts.push(`藥粉$${powderT.toLocaleString()}`);
+    if(otherT)parts.push(`其他$${otherT.toLocaleString()}`);
+    return `<div><div class="rec-date">${fmtDate(date)}　｜　收入 <b>$${income.toLocaleString()}</b></div>
+      <div class="rec-detail">內科 ${d.internal||0} ／ 針傷 ${d.acu||0} ／ 診數 ${d.sessions||0}</div>
+      ${parts.length?`<div class="rec-detail2">${parts.join(' ／ ')}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+// ============ Main render ============
+function render(){
+  if(!authed)return;
+  const d=getData(curDate);
+  $('dateDisplay').textContent=fmtDate(curDate);
+  $('internalInput').value=d.internal||0;
+  $('acuInput').value=d.acu||0;
+
+  INCOME_TYPES.forEach(t=>renderIncomeSection(t.key,t.label));
+  renderSummary();
+  renderMonthly();
+  renderHistory();
+}
+</script>
+</body>
+</html>
